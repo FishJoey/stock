@@ -19,15 +19,15 @@ class DataProvider(ABC):
     def get_daily_kline(
         self,
         code: str,
-        start_date: str = "",
-        end_date: str = "",
+        start_date: str | date | None = None,
+        end_date: str | date | None = None,
         adjust: str = "",
     ) -> pd.DataFrame:
         """获取日K线数据
         Args:
             code: 股票代码，如 "600519"
-            start_date: 起始日期 "YYYYMMDD"
-            end_date: 结束日期 "YYYYMMDD"
+            start_date: 起始日期，支持 "YYYYMMDD" 字符串或 date 对象
+            end_date: 结束日期
             adjust: 复权类型 "" 不复权 / "qfq" 前复权 / "hfq" 后复权
         Returns: DataFrame with columns [code, date, open, high, low, close, volume, amount, ...]
         """
@@ -36,8 +36,8 @@ class DataProvider(ABC):
     def get_index_daily(
         self,
         code: str,
-        start_date: str = "",
-        end_date: str = "",
+        start_date: str | date | None = None,
+        end_date: str | date | None = None,
     ) -> pd.DataFrame:
         """获取指数日K线"""
 

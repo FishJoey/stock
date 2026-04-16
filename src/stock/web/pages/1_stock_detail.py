@@ -90,7 +90,6 @@ fig.add_trace(
 )
 
 # 成交量（红涨绿跌）
-# PLACEHOLDER_VOLUME_COLORS
 colors = [
     "#ef5350" if row["close"] >= row["open"] else "#26a69a"
     for _, row in df.iterrows()
