@@ -122,3 +122,36 @@ if "pct_change" in df.columns:
     cols[3].metric("最高", f"{latest['high']:.2f}")
     cols[4].metric("最低", f"{latest['low']:.2f}")
     cols[5].metric("成交量", f"{latest['volume']:.0f}")
+
+# AI 智能研报
+st.markdown("---")
+st.subheader("AI 智能研报")
+
+from stock.llm import is_configured, get_provider_name
+
+if not is_configured():
+    st.info("配置 LLM API Key 后可使用 AI 研报功能。参考 .env.example 设置。")
+else:
+    if st.button(f"生成 AI 分析报告（{get_provider_name()}）", type="primary"):
+        from stock.analysis.technical import ma, macd, kdj, rsi, boll
+        from stock.analysis.ai_report import generate_report
+
+        with st.spinner("正在计算指标并生成报告..."):
+            # 计算技术指标
+            enriched = ma(df, periods=[5, 10, 20, 60])
+            enriched = macd(enriched)
+            enriched = kdj(enriched)
+            enriched = rsi(enriched, periods=[6, 12])
+            enriched = boll(enriched)
+
+            stock_name = code
+            try:
+                info = storage.search_stock(code)
+                if not info.empty:
+                    stock_name = info.iloc[0]["name"]
+            except Exception:
+                pass
+
+            report = generate_report(code, stock_name, enriched)
+
+        st.markdown(report)

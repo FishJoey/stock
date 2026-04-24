@@ -24,6 +24,37 @@ if stock_list.empty:
     st.warning("股票列表为空，请先运行 init_db.py")
     st.stop()
 
+# ---- AI 自然语言选股 ----
+from stock.llm import is_configured, get_provider_name
+
+st.subheader("AI 自然语言选股")
+if not is_configured():
+    st.info("配置 LLM API Key 后可使用自然语言选股。参考 .env.example。")
+else:
+    nl_query = st.text_input(
+        "用自然语言描述你的选股条件",
+        placeholder="例如：找PE低于20、ROE大于15的创业板股票",
+    )
+    if nl_query and st.button(f"AI 选股（{get_provider_name()}）", type="primary"):
+        from stock.analysis.nl_screener import parse_query
+
+        with st.spinner("AI 正在解析条件..."):
+            config = parse_query(nl_query)
+
+        if config is None:
+            st.error("解析失败，请换个说法试试")
+        else:
+            # 显示解析出的条件
+            st.caption("解析出的筛选条件:")
+            for c in config.conditions:
+                st.caption(f"  {c.column} {c.operator} {c.value}")
+
+            result = screen(stock_list, config)
+            st.subheader(f"筛选结果: {len(result)} 只")
+            st.dataframe(result, use_container_width=True, hide_index=True)
+
+st.markdown("---")
+
 st.sidebar.header("筛选条件")
 
 # 板块筛选
