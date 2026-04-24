@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     tushare_token: str = ""
 
     # LLM 配置
-    # 支持: claude / openai / qwen / deepseek / zhipu / wenxin
+    # 支持: claude / openai / qwen / deepseek / zhipu
     llm_provider: str = "claude"
 
     # Claude

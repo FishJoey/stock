@@ -108,3 +108,65 @@ class Storage:
             params.append(end_date)
         sql += " ORDER BY date"
         return self.conn.execute(sql, params).fetchdf()
+
+    # ---- 行业板块 ----
+
+    def upsert_industry_mapping(self, df: pd.DataFrame):
+        """写入股票行业映射"""
+        if df.empty:
+            return
+        self.conn.execute("INSERT OR REPLACE INTO industry_mapping SELECT code, industry_name FROM df")
+
+    def get_industry_for_stock(self, code: str) -> str:
+        """查询股票所属行业"""
+        result = self.conn.execute(
+            "SELECT industry_name FROM industry_mapping WHERE code = ?", [code]
+        ).fetchone()
+        return result[0] if result else ""
+
+    def get_stocks_in_industry(self, industry_name: str) -> pd.DataFrame:
+        """查询行业内所有股票"""
+        return self.conn.execute(
+            "SELECT m.code, s.name, m.industry_name FROM industry_mapping m "
+            "LEFT JOIN stock_list s ON m.code = s.code "
+            "WHERE m.industry_name = ? ORDER BY m.code",
+            [industry_name],
+        ).fetchdf()
+
+    def upsert_industry_daily(self, df: pd.DataFrame):
+        """写入行业日线"""
+        if df.empty:
+            return
+        self.conn.execute("INSERT OR REPLACE INTO industry_daily SELECT * FROM df")
+
+    def get_industry_daily(
+        self,
+        industry_name: str,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> pd.DataFrame:
+        sql = "SELECT * FROM industry_daily WHERE industry_name = ?"
+        params: list = [industry_name]
+        if start_date:
+            sql += " AND date >= ?"
+            params.append(start_date)
+        if end_date:
+            sql += " AND date <= ?"
+            params.append(end_date)
+        sql += " ORDER BY date"
+        return self.conn.execute(sql, params).fetchdf()
+
+    def get_all_industry_names(self) -> list[str]:
+        """获取所有行业名称"""
+        df = self.conn.execute(
+            "SELECT DISTINCT industry_name FROM industry_mapping ORDER BY industry_name"
+        ).fetchdf()
+        return df["industry_name"].tolist() if not df.empty else []
+
+    # ---- 资金流向 ----
+
+    def upsert_fund_flow_daily(self, df: pd.DataFrame):
+        """写入市场资金流向"""
+        if df.empty:
+            return
+        self.conn.execute("INSERT OR REPLACE INTO fund_flow_daily SELECT * FROM df")

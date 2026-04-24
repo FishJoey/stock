@@ -1,6 +1,7 @@
 """AI 智能研报生成
 
-基于技术面+基本面数据，调用 LLM 自动生成个股分析报告。
+基于 宏观大盘 + 产业行业 + 个股技术面/基本面 三维数据，
+调用 LLM 自动生成综合分析报告。
 支持 Claude / 通义千问 / DeepSeek / 智谱 GLM / OpenAI。
 """
 
@@ -9,8 +10,15 @@ import pandas as pd
 from stock.llm import chat, is_configured
 
 
-def _build_prompt(code: str, name: str, kline: pd.DataFrame, fundamentals: dict | None = None) -> str:
-    """构建研报生成 prompt"""
+def _build_prompt(
+    code: str,
+    name: str,
+    kline: pd.DataFrame,
+    fundamentals: dict | None = None,
+    market_context: str = "",
+    industry_context: str = "",
+) -> str:
+    """构建三维研报 prompt"""
     # 取最近 30 个交易日的数据摘要
     recent = kline.tail(30)
     latest = recent.iloc[-1]
@@ -37,17 +45,40 @@ def _build_prompt(code: str, name: str, kline: pd.DataFrame, fundamentals: dict 
         for k, v in fundamentals.items():
             fund_info += f"{k}: {v}\n"
 
-    prompt = f"""你是一位专业的A股证券分析师。请根据以下数据，为 {name}（{code}）生成一份简洁的分析报告。
+    # 构建三维 prompt
+    sections = [f"你是一位专业的A股证券分析师。请根据以下多维度数据，为 {name}（{code}）生成一份综合分析报告。"]
 
-## 行情数据
-{price_info}
+    # 宏观大盘
+    if market_context:
+        sections.append(f"\n## 宏观大盘环境\n{market_context}")
 
-## 技术指标（最新值）
-{tech_info if tech_info else "暂无技术指标数据"}
+    # 行业定位
+    if industry_context:
+        sections.append(f"\n## 行业定位\n{industry_context}")
 
-## 基本面数据
-{fund_info if fund_info else "暂无基本面数据"}
+    # 个股数据
+    sections.append(f"\n## 个股行情数据\n{price_info}")
+    sections.append(f"\n## 技术指标（最新值）\n{tech_info if tech_info else '暂无技术指标数据'}")
 
+    if fund_info:
+        sections.append(f"\n## 基本面数据\n{fund_info}")
+
+    # 报告要求 — 根据有无宏观/行业数据调整
+    if market_context or industry_context:
+        report_req = """
+## 报告要求
+请用中文输出，包含以下部分：
+1. **宏观环境评估**：当前市场处于什么阶段，对个股的影响
+2. **行业景气度分析**：所属行业的强弱、资金偏好、产业链位置
+3. **个股技术面分析**：基于均线、MACD、KDJ、RSI等指标的分析
+4. **支撑与压力**：关键价位判断
+5. **综合研判**：结合大盘环境、行业趋势和个股走势的综合判断
+6. **风险提示**：宏观风险、行业风险、个股风险
+7. **操作建议**：短期操作方向建议
+
+注意：这是辅助分析，不构成投资建议。保持客观，自上而下分析。"""
+    else:
+        report_req = """
 ## 报告要求
 请用中文输出，包含以下部分：
 1. **走势概述**：近期价格走势和成交量变化
@@ -58,7 +89,8 @@ def _build_prompt(code: str, name: str, kline: pd.DataFrame, fundamentals: dict 
 
 注意：这是辅助分析，不构成投资建议。保持客观，不要过度乐观或悲观。"""
 
-    return prompt
+    sections.append(report_req)
+    return "\n".join(sections)
 
 
 def generate_report(
@@ -66,6 +98,8 @@ def generate_report(
     name: str,
     kline: pd.DataFrame,
     fundamentals: dict | None = None,
+    market_context: str = "",
+    industry_context: str = "",
 ) -> str:
     """生成智能研报
 
@@ -74,6 +108,8 @@ def generate_report(
         name: 股票名称
         kline: K线数据（建议包含技术指标列）
         fundamentals: 基本面数据字典（可选）
+        market_context: 大盘环境文本摘要（可选）
+        industry_context: 行业定位文本摘要（可选）
 
     Returns:
         str: 分析报告文本
@@ -81,5 +117,8 @@ def generate_report(
     if not is_configured():
         return "未配置 LLM API Key，请在 .env 文件中设置。参考 .env.example。"
 
-    prompt = _build_prompt(code, name, kline, fundamentals)
+    if kline.empty:
+        return "数据不足，无法生成报告。"
+
+    prompt = _build_prompt(code, name, kline, fundamentals, market_context, industry_context)
     return chat(prompt)

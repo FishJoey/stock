@@ -135,8 +135,10 @@ else:
     if st.button(f"生成 AI 分析报告（{get_provider_name()}）", type="primary"):
         from stock.analysis.technical import ma, macd, kdj, rsi, boll
         from stock.analysis.ai_report import generate_report
+        from stock.analysis.market import market_summary, format_market_summary
+        from stock.analysis.industry import stock_industry_position, format_industry_summary
 
-        with st.spinner("正在计算指标并生成报告..."):
+        with st.spinner("正在采集大盘+行业+个股数据并生成报告..."):
             # 计算技术指标
             enriched = ma(df, periods=[5, 10, 20, 60])
             enriched = macd(enriched)
@@ -152,6 +154,35 @@ else:
             except Exception:
                 pass
 
-            report = generate_report(code, stock_name, enriched)
+            # 大盘环境
+            market_ctx = ""
+            try:
+                ms = market_summary(provider, storage)
+                market_ctx = format_market_summary(ms)
+            except Exception:
+                pass
+
+            # 行业定位
+            industry_ctx = ""
+            try:
+                pos = stock_industry_position(code, provider, storage)
+                industry_ctx = format_industry_summary(pos)
+            except Exception:
+                pass
+
+            report = generate_report(
+                code, stock_name, enriched,
+                market_context=market_ctx,
+                industry_context=industry_ctx,
+            )
+
+        # 显示上下文信息
+        if market_ctx or industry_ctx:
+            with st.expander("分析上下文（大盘+行业）", expanded=False):
+                if market_ctx:
+                    st.text(market_ctx)
+                if industry_ctx:
+                    st.markdown("---")
+                    st.text(industry_ctx)
 
         st.markdown(report)

@@ -174,3 +174,136 @@ class AKShareProvider(DataProvider):
         if isinstance(d, date):
             return d.strftime("%Y%m%d")
         return d.replace("-", "")
+
+    # ---- 行业板块 ----
+
+    @retry()
+    def get_industry_list(self) -> pd.DataFrame:
+        """获取东方财富行业板块列表
+        Returns: DataFrame [industry_name, code, pct_change, turnover, amount, ...]
+        """
+        logger.info("正在获取行业板块列表...")
+        df = ak.stock_board_industry_name_em()
+        result = pd.DataFrame({
+            "industry_name": df["板块名称"],
+            "board_code": df["板块代码"] if "板块代码" in df.columns else "",
+            "pct_change": pd.to_numeric(df.get("涨跌幅", 0), errors="coerce").fillna(0),
+            "turnover": pd.to_numeric(df.get("换手率", 0), errors="coerce").fillna(0),
+            "amount": pd.to_numeric(df.get("总成交额", 0), errors="coerce").fillna(0),
+            "leading_stock": df.get("领涨股票", ""),
+        })
+        logger.info(f"获取到 {len(result)} 个行业板块")
+        return result
+
+    @retry()
+    def get_industry_stocks(self, industry_name: str) -> pd.DataFrame:
+        """获取行业成分股
+        Returns: DataFrame [code, name, industry_name]
+        """
+        df = ak.stock_board_industry_cons_em(symbol=industry_name)
+        result = pd.DataFrame({
+            "code": df["代码"].astype(str).str.zfill(6),
+            "name": df["名称"],
+            "industry_name": industry_name,
+        })
+        return result
+
+    @retry()
+    def get_industry_hist(
+        self,
+        industry_name: str,
+        start_date: str | date | None = None,
+        end_date: str | date | None = None,
+    ) -> pd.DataFrame:
+        """获取行业板块历史K线
+        Returns: DataFrame [industry_name, date, close, pct_change, turnover, amount]
+        """
+        start_str = self._to_date_str(start_date, "20220101")
+        end_str = self._to_date_str(end_date, date.today().strftime("%Y%m%d"))
+
+        df = ak.stock_board_industry_hist_em(
+            symbol=industry_name, period="日k",
+            start_date=start_str, end_date=end_str,
+            adjust="",
+        )
+        if df.empty:
+            return pd.DataFrame()
+
+        result = pd.DataFrame({
+            "industry_name": industry_name,
+            "date": pd.to_datetime(df["日期"]).dt.date,
+            "close": pd.to_numeric(df["收盘"], errors="coerce"),
+            "pct_change": pd.to_numeric(df["涨跌幅"], errors="coerce"),
+            "turnover": pd.to_numeric(df.get("换手率", 0), errors="coerce").fillna(0),
+            "amount": pd.to_numeric(df.get("成交额", 0), errors="coerce").fillna(0),
+        })
+        return result
+
+    # ---- 资金流向 ----
+
+    @retry()
+    def get_industry_fund_flow(self) -> pd.DataFrame:
+        """获取行业资金流向排名
+        Returns: DataFrame [industry_name, main_net, super_large_net, large_net, ...]
+        """
+        df = ak.stock_fund_flow_industry(symbol="今日")
+        result = pd.DataFrame({
+            "industry_name": df.iloc[:, 1],
+            "pct_change": pd.to_numeric(df.iloc[:, 2], errors="coerce").fillna(0),
+            "main_net": pd.to_numeric(df.iloc[:, 3], errors="coerce").fillna(0),
+            "super_large_net": pd.to_numeric(df.iloc[:, 5], errors="coerce").fillna(0),
+            "large_net": pd.to_numeric(df.iloc[:, 7], errors="coerce").fillna(0),
+            "medium_net": pd.to_numeric(df.iloc[:, 9], errors="coerce").fillna(0),
+            "small_net": pd.to_numeric(df.iloc[:, 11], errors="coerce").fillna(0),
+        })
+        return result
+
+    @retry()
+    def get_north_fund_flow(self) -> pd.DataFrame:
+        """获取北向资金（沪深港通）历史数据
+        Returns: DataFrame [date, north_net]
+        """
+        df = ak.stock_hsgt_fund_flow_summary_em()
+        if df.empty:
+            return pd.DataFrame()
+        result = pd.DataFrame({
+            "date": pd.to_datetime(df.iloc[:, 0]).dt.date,
+            "north_net": pd.to_numeric(df.iloc[:, 1], errors="coerce").fillna(0),
+        })
+        return result
+
+    @retry()
+    def get_market_fund_flow(self) -> pd.DataFrame:
+        """获取大盘资金流向
+        Returns: DataFrame [date, main_net, super_large_net, large_net, medium_net, small_net]
+        """
+        df = ak.stock_market_fund_flow()
+        if df.empty:
+            return pd.DataFrame()
+        result = pd.DataFrame({
+            "date": pd.to_datetime(df.iloc[:, 0]).dt.date,
+            "main_net": pd.to_numeric(df.iloc[:, 1], errors="coerce").fillna(0),
+            "super_large_net": pd.to_numeric(df.iloc[:, 3], errors="coerce").fillna(0),
+            "large_net": pd.to_numeric(df.iloc[:, 5], errors="coerce").fillna(0),
+            "medium_net": pd.to_numeric(df.iloc[:, 7], errors="coerce").fillna(0),
+            "small_net": pd.to_numeric(df.iloc[:, 9], errors="coerce").fillna(0),
+        })
+        return result
+
+    @retry()
+    def get_stock_fund_flow(self, code: str) -> pd.DataFrame:
+        """获取个股资金流向
+        Returns: DataFrame [date, main_net, super_large_net, large_net, medium_net, small_net]
+        """
+        df = ak.stock_individual_fund_flow(stock=code, market="")
+        if df.empty:
+            return pd.DataFrame()
+        result = pd.DataFrame({
+            "date": pd.to_datetime(df.iloc[:, 0]).dt.date,
+            "main_net": pd.to_numeric(df.iloc[:, 1], errors="coerce").fillna(0),
+            "super_large_net": pd.to_numeric(df.iloc[:, 3], errors="coerce").fillna(0),
+            "large_net": pd.to_numeric(df.iloc[:, 5], errors="coerce").fillna(0),
+            "medium_net": pd.to_numeric(df.iloc[:, 7], errors="coerce").fillna(0),
+            "small_net": pd.to_numeric(df.iloc[:, 9], errors="coerce").fillna(0),
+        })
+        return result
