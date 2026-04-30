@@ -12,6 +12,20 @@ from stock.data import get_provider
 from stock.data.storage import Storage
 
 
+def refresh_stock_list():
+    """拉取并更新A股股票列表（供 scheduler 复用）"""
+    storage = Storage()
+    provider = get_provider()
+    storage.init_tables()
+
+    logger.info("拉取A股股票列表...")
+    stock_list = provider.get_stock_list()
+    storage.upsert_stock_list(stock_list)
+    logger.info(f"已写入 {len(stock_list)} 只股票")
+    storage.close()
+    return len(stock_list)
+
+
 def main():
     storage = Storage()
     provider = get_provider()

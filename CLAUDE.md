@@ -20,6 +20,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Batch fetch K-line data (optional limit arg)
 .venv/bin/python3 scripts/fetch_all.py 100
 
+# Start scheduled data fetcher (daily K-lines, stock list, industry mappings)
+.venv/bin/python3 scripts/scheduler.py
+
 # Start web app
 streamlit run src/stock/web/app.py
 
@@ -32,7 +35,7 @@ streamlit run src/stock/web/app.py
 A股综合分析平台 — Chinese A-stock analysis platform built with Python + Streamlit + DuckDB.
 
 ### Data Layer (`src/stock/data/`)
-Adapter pattern: `DataProvider` abstract base → `AKShareProvider` implementation. AKShare accesses 东方财富 APIs which require IPv4-only connections (IPv6 is broken) and proxy clearing. The `@retry()` decorator handles both. `Storage` wraps DuckDB for persistence with upsert semantics.
+Adapter pattern: `DataProvider` abstract base → `BaostockProvider` (primary) + `AKShareProvider` (fallback/supplementary). `get_provider()` factory returns the default provider. Baostock provides daily K-lines, index data, and CSRC industry classification. AKShare is used for north fund flow (datacenter endpoint). `Storage` wraps DuckDB for persistence with upsert semantics. `scripts/scheduler.py` runs APScheduler for automated daily data fetching.
 
 ### Analysis (`src/stock/analysis/`)
 Technical indicators are pure functions `(DataFrame) -> DataFrame` that add columns. Fundamental analysis computes valuation/profitability/growth metrics. `screener.py` applies `FilterCondition` chains to DataFrames.
