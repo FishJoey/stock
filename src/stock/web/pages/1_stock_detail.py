@@ -38,6 +38,13 @@ with st.sidebar:
     adjust_map = {"不复权": "", "前复权": "qfq", "后复权": "hfq"}
 
     st.markdown("---")
+    st.header("技术指标")
+    show_ma = st.checkbox("均线 MA", value=True)
+    show_boll = st.checkbox("布林带 BOLL", value=False)
+    show_macd = st.checkbox("MACD", value=True)
+    show_kdj = st.checkbox("KDJ", value=False)
+
+    st.markdown("---")
     related_companies = st.text_input(
         "关联公司（可选）",
         placeholder="如 砺算科技,东芯半导体",
@@ -71,12 +78,37 @@ if df.empty:
     st.error(f"未获取到 {code} 的数据")
     st.stop()
 
-# 绘制K线图 + 成交量
+# 计算技术指标
+from stock.analysis.technical import ma as calc_ma, macd as calc_macd, boll as calc_boll, kdj as calc_kdj
+
+ma_periods = [5, 10, 20, 60]
+if show_ma:
+    df = calc_ma(df, periods=ma_periods)
+if show_boll:
+    df = calc_boll(df)
+if show_macd or show_kdj:
+    if show_macd:
+        df = calc_macd(df)
+    if show_kdj:
+        df = calc_kdj(df)
+
+# 确定子图数量
+sub_rows = [("K线", 0.55)]
+sub_rows.append(("成交量", 0.15))
+if show_macd:
+    sub_rows.append(("MACD", 0.15))
+if show_kdj:
+    sub_rows.append(("KDJ", 0.15))
+
+row_heights = [r[1] for r in sub_rows]
+total = sum(row_heights)
+row_heights = [h / total for h in row_heights]
+
 fig = make_subplots(
-    rows=2, cols=1,
+    rows=len(sub_rows), cols=1,
     shared_xaxes=True,
-    vertical_spacing=0.03,
-    row_heights=[0.7, 0.3],
+    vertical_spacing=0.02,
+    row_heights=row_heights,
 )
 
 # K线
@@ -88,34 +120,110 @@ fig.add_trace(
         low=df["low"],
         close=df["close"],
         name="K线",
-        increasing_line_color="#ef5350",   # 红涨
-        decreasing_line_color="#26a69a",   # 绿跌
+        increasing_line_color="#ef5350",
+        decreasing_line_color="#26a69a",
         increasing_fillcolor="#ef5350",
         decreasing_fillcolor="#26a69a",
     ),
     row=1, col=1,
 )
 
+# 均线
+if show_ma:
+    ma_colors = {"ma5": "#FF9800", "ma10": "#2196F3", "ma20": "#E91E63", "ma60": "#9C27B0"}
+    for p in ma_periods:
+        col_name = f"ma{p}"
+        if col_name in df.columns:
+            fig.add_trace(
+                go.Scatter(
+                    x=df["date"], y=df[col_name], name=f"MA{p}",
+                    line=dict(color=ma_colors.get(col_name, "#888"), width=1),
+                ),
+                row=1, col=1,
+            )
+
+# 布林带
+if show_boll and "boll_upper" in df.columns:
+    fig.add_trace(
+        go.Scatter(x=df["date"], y=df["boll_upper"], name="BOLL上轨",
+                   line=dict(color="#90CAF9", width=1, dash="dot")),
+        row=1, col=1,
+    )
+    fig.add_trace(
+        go.Scatter(x=df["date"], y=df["boll_mid"], name="BOLL中轨",
+                   line=dict(color="#64B5F6", width=1)),
+        row=1, col=1,
+    )
+    fig.add_trace(
+        go.Scatter(x=df["date"], y=df["boll_lower"], name="BOLL下轨",
+                   line=dict(color="#90CAF9", width=1, dash="dot"),
+                   fill="tonexty", fillcolor="rgba(144,202,249,0.08)"),
+        row=1, col=1,
+    )
+
 # 成交量（红涨绿跌）
-colors = [
+vol_row = 2
+vol_colors = [
     "#ef5350" if row["close"] >= row["open"] else "#26a69a"
     for _, row in df.iterrows()
 ]
-
 fig.add_trace(
-    go.Bar(x=df["date"], y=df["volume"], name="成交量", marker_color=colors),
-    row=2, col=1,
+    go.Bar(x=df["date"], y=df["volume"], name="成交量", marker_color=vol_colors),
+    row=vol_row, col=1,
 )
 
+# MACD
+if show_macd and "macd_dif" in df.columns:
+    macd_row = 3
+    fig.add_trace(
+        go.Scatter(x=df["date"], y=df["macd_dif"], name="DIF",
+                   line=dict(color="#2196F3", width=1)),
+        row=macd_row, col=1,
+    )
+    fig.add_trace(
+        go.Scatter(x=df["date"], y=df["macd_dea"], name="DEA",
+                   line=dict(color="#FF9800", width=1)),
+        row=macd_row, col=1,
+    )
+    macd_colors = ["#ef5350" if v >= 0 else "#26a69a" for v in df["macd_hist"]]
+    fig.add_trace(
+        go.Bar(x=df["date"], y=df["macd_hist"], name="MACD柱",
+               marker_color=macd_colors),
+        row=macd_row, col=1,
+    )
+
+# KDJ
+if show_kdj and "kdj_k" in df.columns:
+    kdj_row = len(sub_rows)
+    fig.add_trace(
+        go.Scatter(x=df["date"], y=df["kdj_k"], name="K",
+                   line=dict(color="#2196F3", width=1)),
+        row=kdj_row, col=1,
+    )
+    fig.add_trace(
+        go.Scatter(x=df["date"], y=df["kdj_d"], name="D",
+                   line=dict(color="#FF9800", width=1)),
+        row=kdj_row, col=1,
+    )
+    fig.add_trace(
+        go.Scatter(x=df["date"], y=df["kdj_j"], name="J",
+                   line=dict(color="#E91E63", width=1)),
+        row=kdj_row, col=1,
+    )
+
 fig.update_layout(
-    height=700,
+    height=250 + 200 * (len(sub_rows) - 1),
     xaxis_rangeslider_visible=False,
-    showlegend=False,
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
     margin=dict(l=50, r=20, t=30, b=30),
 )
 fig.update_xaxes(type="category", nticks=20)
 fig.update_yaxes(title_text="价格", row=1, col=1)
-fig.update_yaxes(title_text="成交量", row=2, col=1)
+fig.update_yaxes(title_text="成交量", row=vol_row, col=1)
+if show_macd and "macd_dif" in df.columns:
+    fig.update_yaxes(title_text="MACD", row=3, col=1)
+if show_kdj and "kdj_k" in df.columns:
+    fig.update_yaxes(title_text="KDJ", row=len(sub_rows), col=1)
 
 st.plotly_chart(fig, use_container_width=True)
 
