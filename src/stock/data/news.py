@@ -34,21 +34,42 @@ def _clean_html(text: str) -> str:
     return text
 
 
-def fetch_stock_news(code: str, count: int = 20) -> list[dict]:
+def fetch_stock_news(code: str, count: int = 20, keywords: list[str] | None = None) -> list[dict]:
     """获取个股最新新闻
 
     Args:
         code: 股票代码，如 "600519"
         count: 获取条数，最多 100
+        keywords: 额外搜索关键词（如关联公司名称），每个关键词单独搜索后合并去重
 
     Returns:
         [{"title": str, "content": str, "time": str, "source": str, "url": str}, ...]
     """
-    count = min(count, 100)
+    all_keywords = [code]
+    if keywords:
+        all_keywords.extend(k.strip() for k in keywords if k.strip())
+
+    seen_titles = set()
+    all_news = []
+
+    for kw in all_keywords:
+        per_kw_count = count if len(all_keywords) == 1 else max(count // len(all_keywords), 10)
+        items = _search_news(kw, min(per_kw_count, 100))
+        for item in items:
+            if item["title"] not in seen_titles:
+                seen_titles.add(item["title"])
+                all_news.append(item)
+
+    all_news.sort(key=lambda x: x["time"], reverse=True)
+    return all_news[:count]
+
+
+def _search_news(keyword: str, count: int) -> list[dict]:
+    """搜索单个关键词的新闻"""
     url = "https://search-api-web.eastmoney.com/search/jsonp"
     inner_param = {
         "uid": "",
-        "keyword": code,
+        "keyword": keyword,
         "type": ["cmsArticleWebOld"],
         "client": "web",
         "clientType": "web",
@@ -79,7 +100,7 @@ def fetch_stock_news(code: str, count: int = 20) -> list[dict]:
             break
         except Exception as e:
             if attempt == 2:
-                logger.error(f"获取 {code} 新闻失败: {e}")
+                logger.error(f"获取 '{keyword}' 新闻失败: {e}")
                 return []
             time.sleep(1)
 
@@ -89,7 +110,7 @@ def fetch_stock_news(code: str, count: int = 20) -> list[dict]:
         data = json.loads(json_str)
         items = data.get("result", {}).get("cmsArticleWebOld", [])
     except (json.JSONDecodeError, KeyError) as e:
-        logger.error(f"解析 {code} 新闻数据失败: {e}")
+        logger.error(f"解析 '{keyword}' 新闻数据失败: {e}")
         return []
 
     news_list = []

@@ -25,7 +25,7 @@ provider = get_provider()
 # 侧边栏：股票搜索
 with st.sidebar:
     st.header("股票选择")
-    keyword = st.text_input("输入代码或名称", value="600519", placeholder="如 600519 或 茅台")
+    keyword = st.text_input("输入代码或名称", value="688110", placeholder="如 688110 或 东芯股份")
 
     # 日期范围
     col1, col2 = st.columns(2)
@@ -36,6 +36,13 @@ with st.sidebar:
 
     adjust = st.selectbox("复权方式", ["不复权", "前复权", "后复权"], index=1)
     adjust_map = {"不复权": "", "前复权": "qfq", "后复权": "hfq"}
+
+    st.markdown("---")
+    related_companies = st.text_input(
+        "关联公司（可选）",
+        placeholder="如 砺算科技,东芯半导体",
+        help="逗号分隔，AI 研报和新闻会同时搜索这些关联公司",
+    )
 
 # 获取数据
 code = keyword.strip()
@@ -137,8 +144,9 @@ else:
         from stock.analysis.ai_report import generate_report
         from stock.analysis.market import market_summary, format_market_summary
         from stock.analysis.industry import stock_industry_position, format_industry_summary
+        from stock.data.news import fetch_stock_news
 
-        with st.spinner("正在采集大盘+行业+个股数据并生成报告..."):
+        with st.spinner("正在采集大盘+行业+新闻+个股数据并生成报告..."):
             # 计算技术指标
             enriched = ma(df, periods=[5, 10, 20, 60])
             enriched = macd(enriched)
@@ -170,20 +178,37 @@ else:
             except Exception:
                 pass
 
+            # 近期新闻
+            news_ctx = ""
+            try:
+                extra_kw = [k.strip() for k in related_companies.split(",") if k.strip()] if related_companies else None
+                news = fetch_stock_news(code, count=15, keywords=extra_kw)
+                if news:
+                    lines = []
+                    for n in news[:15]:
+                        lines.append(f"- [{n['time'][:10]}] {n['title']}: {n['content'][:100]}")
+                    news_ctx = "\n".join(lines)
+            except Exception:
+                pass
+
             report = generate_report(
                 code, stock_name, enriched,
                 market_context=market_ctx,
                 industry_context=industry_ctx,
+                news_context=news_ctx,
             )
 
         # 显示上下文信息
-        if market_ctx or industry_ctx:
-            with st.expander("分析上下文（大盘+行业）", expanded=False):
+        if market_ctx or industry_ctx or news_ctx:
+            with st.expander("分析上下文（大盘+行业+新闻）", expanded=False):
                 if market_ctx:
                     st.text(market_ctx)
                 if industry_ctx:
                     st.markdown("---")
                     st.text(industry_ctx)
+                if news_ctx:
+                    st.markdown("---")
+                    st.text(news_ctx)
 
         st.markdown(report)
 
@@ -195,7 +220,8 @@ from stock.data.news import fetch_stock_news
 
 if st.button("获取最新资讯", key="fetch_news"):
     with st.spinner("正在获取新闻..."):
-        news_list = fetch_stock_news(code, count=20)
+        extra_kw = [k.strip() for k in related_companies.split(",") if k.strip()] if related_companies else None
+        news_list = fetch_stock_news(code, count=20, keywords=extra_kw)
     st.session_state["news_list"] = news_list
 
 if "news_list" in st.session_state and st.session_state["news_list"]:

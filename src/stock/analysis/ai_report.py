@@ -17,6 +17,7 @@ def _build_prompt(
     fundamentals: dict | None = None,
     market_context: str = "",
     industry_context: str = "",
+    news_context: str = "",
 ) -> str:
     """构建三维研报 prompt"""
     # 取最近 30 个交易日的数据摘要
@@ -63,6 +64,10 @@ def _build_prompt(
     if fund_info:
         sections.append(f"\n## 基本面数据\n{fund_info}")
 
+    # 近期新闻事件
+    if news_context:
+        sections.append(f"\n## 近期重要新闻/事件\n{news_context}")
+
     # 报告要求 — 根据有无宏观/行业数据调整
     if market_context or industry_context:
         report_req = """
@@ -70,11 +75,12 @@ def _build_prompt(
 请用中文输出，包含以下部分：
 1. **宏观环境评估**：当前市场处于什么阶段，对个股的影响
 2. **行业景气度分析**：所属行业的强弱、资金偏好、产业链位置
-3. **个股技术面分析**：基于均线、MACD、KDJ、RSI等指标的分析
-4. **支撑与压力**：关键价位判断
-5. **综合研判**：结合大盘环境、行业趋势和个股走势的综合判断
-6. **风险提示**：宏观风险、行业风险、个股风险
-7. **操作建议**：短期操作方向建议
+3. **近期重大事件**：结合新闻资讯分析近期重要事件对公司的影响
+4. **个股技术面分析**：基于均线、MACD、KDJ、RSI等指标的分析
+5. **支撑与压力**：关键价位判断
+6. **综合研判**：结合大盘环境、行业趋势、新闻事件和个股走势的综合判断
+7. **风险提示**：宏观风险、行业风险、个股风险、事件风险
+8. **操作建议**：短期操作方向建议
 
 注意：这是辅助分析，不构成投资建议。保持客观，自上而下分析。"""
     else:
@@ -82,10 +88,11 @@ def _build_prompt(
 ## 报告要求
 请用中文输出，包含以下部分：
 1. **走势概述**：近期价格走势和成交量变化
-2. **技术面分析**：基于均线、MACD、KDJ、RSI等指标的分析
-3. **支撑与压力**：关键价位判断
-4. **风险提示**：需要关注的风险因素
-5. **操作建议**：短期操作方向建议
+2. **近期重大事件**：结合新闻资讯分析近期重要事件对公司的影响
+3. **技术面分析**：基于均线、MACD、KDJ、RSI等指标的分析
+4. **支撑与压力**：关键价位判断
+5. **风险提示**：需要关注的风险因素
+6. **操作建议**：短期操作方向建议
 
 注意：这是辅助分析，不构成投资建议。保持客观，不要过度乐观或悲观。"""
 
@@ -100,6 +107,7 @@ def generate_report(
     fundamentals: dict | None = None,
     market_context: str = "",
     industry_context: str = "",
+    news_context: str = "",
 ) -> str:
     """生成智能研报
 
@@ -110,6 +118,7 @@ def generate_report(
         fundamentals: 基本面数据字典（可选）
         market_context: 大盘环境文本摘要（可选）
         industry_context: 行业定位文本摘要（可选）
+        news_context: 近期新闻摘要（可选）
 
     Returns:
         str: 分析报告文本
@@ -120,5 +129,5 @@ def generate_report(
     if kline.empty:
         return "数据不足，无法生成报告。"
 
-    prompt = _build_prompt(code, name, kline, fundamentals, market_context, industry_context)
+    prompt = _build_prompt(code, name, kline, fundamentals, market_context, industry_context, news_context)
     return chat(prompt)
