@@ -82,7 +82,39 @@ CREATE TABLE IF NOT EXISTS fund_flow_daily (
 )
 """
 
+# AI 研报历史
+CREATE_AI_REPORTS = """
+CREATE TABLE IF NOT EXISTS ai_reports (
+    id VARCHAR PRIMARY KEY,
+    code VARCHAR NOT NULL,
+    stock_name VARCHAR NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    report_text TEXT NOT NULL,
+    market_context TEXT DEFAULT '',
+    industry_context TEXT DEFAULT '',
+    news_context TEXT DEFAULT '',
+    user_input TEXT DEFAULT '',
+    skills_used TEXT DEFAULT '',
+    llm_provider VARCHAR DEFAULT ''
+)
+"""
+
+# 分析技能（agent 提炼的规则）
+CREATE_AGENT_SKILLS = """
+CREATE TABLE IF NOT EXISTS agent_skills (
+    id VARCHAR PRIMARY KEY,
+    code VARCHAR DEFAULT '',
+    industry VARCHAR DEFAULT '',
+    skill_text TEXT NOT NULL,
+    reason TEXT DEFAULT '',
+    source_report_ids TEXT DEFAULT '',
+    created_at TIMESTAMP NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE
+)
+"""
+
 ALL_TABLES = [
     CREATE_STOCK_LIST, CREATE_DAILY_KLINE, CREATE_INDEX_DAILY,
     CREATE_INDUSTRY_MAPPING, CREATE_INDUSTRY_DAILY, CREATE_FUND_FLOW_DAILY,
+    CREATE_AI_REPORTS, CREATE_AGENT_SKILLS,
 ]

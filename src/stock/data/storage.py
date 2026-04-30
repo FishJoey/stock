@@ -170,3 +170,70 @@ class Storage:
         if df.empty:
             return
         self.conn.execute("INSERT OR REPLACE INTO fund_flow_daily SELECT * FROM df")
+
+    # ---- AI 研报 ----
+
+    def save_report(
+        self,
+        report_id: str,
+        code: str,
+        stock_name: str,
+        report_text: str,
+        market_context: str = "",
+        industry_context: str = "",
+        news_context: str = "",
+        user_input: str = "",
+        skills_used: str = "",
+        llm_provider: str = "",
+    ):
+        self.conn.execute(
+            "INSERT OR REPLACE INTO ai_reports VALUES (?,?,?,NOW(),?,?,?,?,?,?,?)",
+            [report_id, code, stock_name, report_text,
+             market_context, industry_context, news_context,
+             user_input, skills_used, llm_provider],
+        )
+
+    def get_reports(self, code: str, limit: int = 20) -> pd.DataFrame:
+        return self.conn.execute(
+            "SELECT * FROM ai_reports WHERE code = ? ORDER BY created_at DESC LIMIT ?",
+            [code, limit],
+        ).fetchdf()
+
+    def get_report_count(self, code: str) -> int:
+        result = self.conn.execute(
+            "SELECT COUNT(*) FROM ai_reports WHERE code = ?", [code]
+        ).fetchone()
+        return result[0] if result else 0
+
+    # ---- 分析技能 ----
+
+    def save_skill(
+        self,
+        skill_id: str,
+        skill_text: str,
+        reason: str = "",
+        code: str = "",
+        industry: str = "",
+        source_report_ids: str = "",
+    ):
+        self.conn.execute(
+            "INSERT OR REPLACE INTO agent_skills VALUES (?,?,?,?,?,?,NOW(),TRUE)",
+            [skill_id, code, industry, skill_text, reason, source_report_ids],
+        )
+
+    def get_active_skills(self, code: str = "", industry: str = "") -> pd.DataFrame:
+        return self.conn.execute(
+            "SELECT * FROM agent_skills WHERE is_active = TRUE "
+            "AND (code = '' OR code = ?) AND (industry = '' OR industry = ?) "
+            "ORDER BY created_at",
+            [code, industry],
+        ).fetchdf()
+
+    def toggle_skill(self, skill_id: str, active: bool):
+        self.conn.execute(
+            "UPDATE agent_skills SET is_active = ? WHERE id = ?",
+            [active, skill_id],
+        )
+
+    def delete_skill(self, skill_id: str):
+        self.conn.execute("DELETE FROM agent_skills WHERE id = ?", [skill_id])

@@ -18,6 +18,8 @@ def _build_prompt(
     market_context: str = "",
     industry_context: str = "",
     news_context: str = "",
+    user_input: str = "",
+    skills_context: str = "",
 ) -> str:
     """构建三维研报 prompt"""
     # 取最近 30 个交易日的数据摘要
@@ -49,6 +51,10 @@ def _build_prompt(
     # 构建三维 prompt
     sections = [f"你是一位专业的A股证券分析师。请根据以下多维度数据，为 {name}（{code}）生成一份综合分析报告。"]
 
+    # 注入分析技能（历史经验）
+    if skills_context:
+        sections.append(f"\n## 分析指南（基于历史报告总结的经验）\n{skills_context}")
+
     # 宏观大盘
     if market_context:
         sections.append(f"\n## 宏观大盘环境\n{market_context}")
@@ -67,6 +73,10 @@ def _build_prompt(
     # 近期新闻事件
     if news_context:
         sections.append(f"\n## 近期重要新闻/事件\n{news_context}")
+
+    # 用户补充信息
+    if user_input:
+        sections.append(f"\n## 用户补充信息\n{user_input}")
 
     # 报告要求 — 根据有无宏观/行业数据调整
     if market_context or industry_context:
@@ -108,26 +118,19 @@ def generate_report(
     market_context: str = "",
     industry_context: str = "",
     news_context: str = "",
+    user_input: str = "",
+    skills_context: str = "",
 ) -> str:
-    """生成智能研报
-
-    Args:
-        code: 股票代码
-        name: 股票名称
-        kline: K线数据（建议包含技术指标列）
-        fundamentals: 基本面数据字典（可选）
-        market_context: 大盘环境文本摘要（可选）
-        industry_context: 行业定位文本摘要（可选）
-        news_context: 近期新闻摘要（可选）
-
-    Returns:
-        str: 分析报告文本
-    """
+    """生成智能研报"""
     if not is_configured():
         return "未配置 LLM API Key，请在 .env 文件中设置。参考 .env.example。"
 
     if kline.empty:
         return "数据不足，无法生成报告。"
 
-    prompt = _build_prompt(code, name, kline, fundamentals, market_context, industry_context, news_context)
+    prompt = _build_prompt(
+        code, name, kline, fundamentals,
+        market_context, industry_context, news_context,
+        user_input, skills_context,
+    )
     return chat(prompt)
