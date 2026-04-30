@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from stock.data.akshare_provider import AKShareProvider
+from stock.data import get_provider
 from stock.data.storage import Storage
 from stock.strategy.backtest import backtest
 from stock.strategy.templates import (
@@ -22,7 +22,7 @@ st.title("策略实验室")
 
 storage = Storage()
 storage.init_tables()
-provider = AKShareProvider()
+provider = get_provider()
 
 # 侧边栏配置
 with st.sidebar:

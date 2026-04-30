@@ -8,13 +8,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from loguru import logger
 
-from stock.data.akshare_provider import AKShareProvider
+from stock.data import get_provider
 from stock.data.storage import Storage
 
 
 def main():
     storage = Storage()
-    provider = AKShareProvider()
+    provider = get_provider()
 
     # 1. 创建表
     logger.info("初始化数据库表...")

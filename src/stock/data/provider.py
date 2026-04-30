@@ -49,3 +49,44 @@ class DataProvider(ABC):
     ) -> pd.DataFrame:
         """获取分钟K线（可选实现）"""
         raise NotImplementedError
+
+    # ---- 行业板块（可选实现，默认返回空 DataFrame）----
+
+    def get_industry_list(self) -> pd.DataFrame:
+        """获取行业板块列表"""
+        return pd.DataFrame()
+
+    def get_industry_stocks(self, industry_name: str) -> pd.DataFrame:
+        """获取行业成分股"""
+        return pd.DataFrame()
+
+    def get_all_industry_mappings(self) -> pd.DataFrame:
+        """批量获取所有股票的行业映射"""
+        return pd.DataFrame()
+
+    def get_industry_hist(
+        self,
+        industry_name: str,
+        start_date: str | date | None = None,
+        end_date: str | date | None = None,
+    ) -> pd.DataFrame:
+        """获取行业板块历史K线"""
+        return pd.DataFrame()
+
+    # ---- 资金流向（可选实现，默认返回空 DataFrame）----
+
+    def get_industry_fund_flow(self) -> pd.DataFrame:
+        """获取行业资金流向排名"""
+        return pd.DataFrame()
+
+    def get_north_fund_flow(self) -> pd.DataFrame:
+        """获取北向资金历史数据"""
+        return pd.DataFrame()
+
+    def get_market_fund_flow(self) -> pd.DataFrame:
+        """获取大盘资金流向"""
+        return pd.DataFrame()
+
+    def get_stock_fund_flow(self, code: str) -> pd.DataFrame:
+        """获取个股资金流向"""
+        return pd.DataFrame()

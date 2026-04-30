@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from loguru import logger
 
-from stock.data.akshare_provider import AKShareProvider
+from stock.data.provider import DataProvider
 from stock.data.storage import Storage
 
 
@@ -41,7 +41,7 @@ INDUSTRY_CHAINS = {
 }
 
 
-def industry_ranking(provider: AKShareProvider) -> pd.DataFrame:
+def industry_ranking(provider: DataProvider) -> pd.DataFrame:
     """获取行业板块强弱排名
 
     Returns:
@@ -56,7 +56,7 @@ def industry_ranking(provider: AKShareProvider) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def industry_fund_flow_ranking(provider: AKShareProvider) -> pd.DataFrame:
+def industry_fund_flow_ranking(provider: DataProvider) -> pd.DataFrame:
     """获取行业资金流向排名
 
     Returns:
@@ -73,7 +73,7 @@ def industry_fund_flow_ranking(provider: AKShareProvider) -> pd.DataFrame:
 
 def stock_industry_position(
     code: str,
-    provider: AKShareProvider,
+    provider: DataProvider,
     storage: Storage,
 ) -> dict:
     """分析个股在行业中的定位

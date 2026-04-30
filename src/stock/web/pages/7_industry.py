@@ -9,7 +9,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
-from stock.data.akshare_provider import AKShareProvider
+from stock.data import get_provider
 from stock.data.storage import Storage
 from stock.analysis.industry import (
     industry_ranking,
@@ -21,7 +21,7 @@ from stock.analysis.industry import (
 st.set_page_config(page_title="产业分析", page_icon="🏭", layout="wide")
 st.title("产业分析")
 
-provider = AKShareProvider()
+provider = get_provider()
 storage = Storage()
 storage.init_tables()
 

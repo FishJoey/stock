@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from loguru import logger
 
 from stock.config import settings
-from stock.data.akshare_provider import AKShareProvider
+from stock.data import get_provider
 from stock.data.storage import Storage
 
 
@@ -21,7 +21,7 @@ def fetch_daily_klines(codes: list[str] | None = None, limit: int = 0):
         limit: 限制拉取数量，0 表示不限制
     """
     storage = Storage()
-    provider = AKShareProvider()
+    provider = get_provider()
     storage.init_tables()
 
     if not codes:

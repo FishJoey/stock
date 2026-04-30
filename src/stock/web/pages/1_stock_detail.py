@@ -11,7 +11,7 @@ from plotly.subplots import make_subplots
 # 确保 src 在 path 中
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from stock.data.akshare_provider import AKShareProvider
+from stock.data import get_provider
 from stock.data.storage import Storage
 
 st.set_page_config(page_title="个股详情", page_icon="📊", layout="wide")
@@ -20,7 +20,7 @@ st.title("个股详情")
 # 初始化
 storage = Storage()
 storage.init_tables()
-provider = AKShareProvider()
+provider = get_provider()
 
 # 侧边栏：股票搜索
 with st.sidebar:

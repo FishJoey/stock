@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 
 from stock.constants import INDEX_CODES
-from stock.data.akshare_provider import AKShareProvider
+from stock.data.provider import DataProvider
 from stock.data.storage import Storage
 
 
@@ -67,7 +67,7 @@ def market_regime(index_df: pd.DataFrame) -> dict:
     }
 
 
-def market_summary(provider: AKShareProvider, storage: Storage) -> dict:
+def market_summary(provider: DataProvider, storage: Storage) -> dict:
     """生成大盘环境摘要（供 AI 研报使用）
 
     Returns:

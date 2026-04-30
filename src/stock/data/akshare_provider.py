@@ -6,28 +6,14 @@ import time
 from datetime import date
 from functools import wraps
 
-import akshare as ak
-import pandas as pd
+import requests
 import urllib3.util.connection
-from loguru import logger
 
-from stock.constants import get_board, get_exchange
-from stock.data.provider import DataProvider
+# ── 在 import akshare 之前完成所有网络补丁 ──
+# AKShare 访问东方财富等国内站点，不应走代理，且 IPv6 不通
 
-# 强制 requests/urllib3 使用 IPv4
-# 东方财富的 IPv6 在部分网络环境下不通，导致连接被重置
+# 1) 强制 IPv4
 urllib3.util.connection.HAS_IPV6 = False
-_orig_create_connection = urllib3.util.connection.create_connection
-
-
-def _ipv4_only_create_connection(address, *args, **kwargs):
-    """强制使用 IPv4 连接"""
-    kwargs["socket_options"] = kwargs.get("socket_options", [])
-    return _orig_create_connection(address, *args, **kwargs, source_address=None)
-
-
-# Monkey-patch: 让所有连接只走 AF_INET (IPv4)
-_orig_allowed = urllib3.util.connection.allowed_gai_family
 
 
 def _allowed_gai_family():
@@ -36,26 +22,36 @@ def _allowed_gai_family():
 
 urllib3.util.connection.allowed_gai_family = _allowed_gai_family
 
-# AKShare 访问的是国内网站（东方财富等），不应走代理
+# 2) 模块级清除代理环境变量 + 设置 NO_PROXY 兜底
 _PROXY_KEYS = [
     "http_proxy", "https_proxy", "all_proxy",
     "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
 ]
+_saved_proxies: dict[str, str] = {}
+for _k in _PROXY_KEYS:
+    if _k in os.environ:
+        _saved_proxies[_k] = os.environ.pop(_k)
+os.environ["NO_PROXY"] = os.environ.get("NO_PROXY", "") or "*"
+os.environ["no_proxy"] = os.environ.get("no_proxy", "") or "*"
+
+# 3) 让 requests.Session 默认不信任系统代理
+_orig_session_init = requests.Session.__init__
 
 
-def _clear_proxy():
-    """临时清除代理环境变量，避免 requests 走代理连不上国内站点"""
-    saved = {}
-    for key in _PROXY_KEYS:
-        if key in os.environ:
-            saved[key] = os.environ.pop(key)
-    return saved
+def _patched_session_init(self, *args, **kwargs):
+    _orig_session_init(self, *args, **kwargs)
+    self.trust_env = False
 
 
-def _restore_proxy(saved: dict):
-    """恢复代理环境变量"""
-    for key, val in saved.items():
-        os.environ[key] = val
+requests.Session.__init__ = _patched_session_init  # type: ignore[method-assign]
+
+# ── 补丁完成，安全 import akshare ──
+import akshare as ak  # noqa: E402
+import pandas as pd  # noqa: E402
+from loguru import logger  # noqa: E402
+
+from stock.constants import get_board, get_exchange  # noqa: E402
+from stock.data.provider import DataProvider  # noqa: E402
 
 
 def retry(max_retries: int = 3, delay: float = 1.0):
@@ -63,19 +59,15 @@ def retry(max_retries: int = 3, delay: float = 1.0):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            saved = _clear_proxy()
-            try:
-                for attempt in range(1, max_retries + 1):
-                    try:
-                        return func(*args, **kwargs)
-                    except Exception as e:
-                        if attempt == max_retries:
-                            raise
-                        wait = delay * (2 ** (attempt - 1))
-                        logger.warning(f"{func.__name__} 第{attempt}次失败: {e}，{wait:.0f}s 后重试")
-                        time.sleep(wait)
-            finally:
-                _restore_proxy(saved)
+            for attempt in range(1, max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if attempt == max_retries:
+                        raise
+                    wait = delay * (2 ** (attempt - 1))
+                    logger.warning(f"{func.__name__} 第{attempt}次失败: {e}，{wait:.0f}s 后重试")
+                    time.sleep(wait)
         return wrapper
     return decorator
 
@@ -107,22 +99,31 @@ class AKShareProvider(DataProvider):
         end_date: str | date | None = None,
         adjust: str = "",
     ) -> pd.DataFrame:
-        """获取日K线数据"""
+        """获取日K线数据（东方财富优先，失败时回退到腾讯数据源）"""
         start_str = self._to_date_str(start_date, "20200101")
         end_str = self._to_date_str(end_date, date.today().strftime("%Y%m%d"))
 
-        df = ak.stock_zh_a_hist(
-            symbol=code,
-            period="daily",
-            start_date=start_str,
-            end_date=end_str,
-            adjust=adjust,
-        )
+        try:
+            df = ak.stock_zh_a_hist(
+                symbol=code,
+                period="daily",
+                start_date=start_str,
+                end_date=end_str,
+                adjust=adjust,
+            )
+        except Exception as e:
+            logger.warning(f"{code} 东方财富源失败: {e}，切换腾讯数据源")
+            df = None
 
-        if df.empty:
-            return pd.DataFrame()
+        if df is not None and not df.empty:
+            return self._parse_em_kline(code, df)
 
-        result = pd.DataFrame({
+        # fallback: 腾讯数据源（字段较少，无换手率/振幅/涨跌额）
+        return self._fetch_kline_tx(code, start_str, end_str)
+
+    def _parse_em_kline(self, code: str, df: pd.DataFrame) -> pd.DataFrame:
+        """解析东方财富日K线"""
+        return pd.DataFrame({
             "code": code,
             "date": pd.to_datetime(df["日期"]).dt.date,
             "open": df["开盘"].astype(float),
@@ -135,6 +136,34 @@ class AKShareProvider(DataProvider):
             "amplitude": df["振幅"].astype(float) if "振幅" in df.columns else 0.0,
             "pct_change": df["涨跌幅"].astype(float) if "涨跌幅" in df.columns else 0.0,
             "change": df["涨跌额"].astype(float) if "涨跌额" in df.columns else 0.0,
+        })
+
+    def _fetch_kline_tx(self, code: str, start_str: str, end_str: str) -> pd.DataFrame:
+        """腾讯数据源获取日K线"""
+        exchange = get_exchange(code)
+        symbol = f"{'sh' if exchange == 'SH' else 'sz'}{code}"
+        start_fmt = f"{start_str[:4]}-{start_str[4:6]}-{start_str[6:]}"
+        end_fmt = f"{end_str[:4]}-{end_str[4:6]}-{end_str[6:]}"
+
+        df = ak.stock_zh_a_hist_tx(
+            symbol=symbol, start_date=start_fmt, end_date=end_fmt,
+        )
+        if df.empty:
+            return pd.DataFrame()
+
+        result = pd.DataFrame({
+            "code": code,
+            "date": pd.to_datetime(df["date"]).dt.date,
+            "open": df["open"].astype(float),
+            "high": df["high"].astype(float),
+            "low": df["low"].astype(float),
+            "close": df["close"].astype(float),
+            "volume": 0.0,
+            "amount": df["amount"].astype(float) if "amount" in df.columns else 0.0,
+            "turnover": 0.0,
+            "amplitude": 0.0,
+            "pct_change": 0.0,
+            "change": 0.0,
         })
         return result
 

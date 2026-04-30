@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from stock.data.akshare_provider import AKShareProvider
+from stock.data import get_provider
 from stock.data.storage import Storage
 from stock.constants import INDEX_CODES
 
@@ -19,7 +19,7 @@ st.title("大盘总览")
 
 storage = Storage()
 storage.init_tables()
-provider = AKShareProvider()
+provider = get_provider()
 
 # 指数选择
 selected = st.multiselect(
