@@ -186,3 +186,43 @@ else:
                     st.text(industry_ctx)
 
         st.markdown(report)
+
+# 个股资讯
+st.markdown("---")
+st.subheader("个股资讯")
+
+from stock.data.news import fetch_stock_news
+
+if st.button("获取最新资讯", key="fetch_news"):
+    with st.spinner("正在获取新闻..."):
+        news_list = fetch_stock_news(code, count=20)
+    st.session_state["news_list"] = news_list
+
+if "news_list" in st.session_state and st.session_state["news_list"]:
+    news_list = st.session_state["news_list"]
+    st.caption(f"共 {len(news_list)} 条资讯")
+
+    for n in news_list:
+        with st.expander(f"**{n['title']}**　{n['source']} · {n['time'][:10]}"):
+            st.write(n["content"])
+            if n["url"]:
+                st.markdown(f"[查看原文]({n['url']})")
+
+    # AI 新闻分析
+    if is_configured():
+        if st.button(f"AI 分析新闻舆情（{get_provider_name()}）", key="ai_news"):
+            from stock.analysis.ai_news import analyze_news
+
+            stock_name_for_news = code
+            try:
+                info = storage.search_stock(code)
+                if not info.empty:
+                    stock_name_for_news = info.iloc[0]["name"]
+            except Exception:
+                pass
+
+            with st.spinner("正在分析新闻舆情..."):
+                analysis = analyze_news(code, stock_name_for_news, news_list)
+            st.markdown(analysis)
+elif "news_list" in st.session_state:
+    st.info("未获取到相关新闻")

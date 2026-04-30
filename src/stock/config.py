@@ -20,6 +20,7 @@ class Settings(BaseSettings):
 
     # Claude
     anthropic_api_key: str = ""
+    anthropic_base_url: str = ""  # 留空则用官方默认
     anthropic_model: str = "claude-sonnet-4-20250514"
 
     # OpenAI 兼容（通义千问/DeepSeek/智谱 GLM 都走这个）

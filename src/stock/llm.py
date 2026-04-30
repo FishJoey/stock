@@ -65,7 +65,10 @@ def _call_claude(prompt: str, system: str) -> str:
         return "请安装 anthropic 包: pip install anthropic"
 
     try:
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        client = anthropic.Anthropic(
+            api_key=settings.anthropic_api_key,
+            base_url=settings.anthropic_base_url or None,
+        )
         kwargs = {
             "model": settings.anthropic_model,
             "max_tokens": 2000,
