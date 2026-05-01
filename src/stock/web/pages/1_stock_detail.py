@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import plotly.graph_objects as go
+import pandas as pd
 import streamlit as st
 from plotly.subplots import make_subplots
 
@@ -243,7 +244,7 @@ if "pct_change" in df.columns:
 from stock.llm import is_configured, get_provider_name
 from stock.data.news import fetch_stock_news
 
-tab_ai, tab_news = st.tabs(["AI 智能研报", "个股资讯"])
+tab_ai, tab_news, tab_chat = st.tabs(["AI 智能研报", "个股资讯", "AI 对话"])
 
 # ---- AI 智能研报 Tab ----
 with tab_ai:
@@ -466,3 +467,69 @@ with tab_news:
                 st.markdown(analysis)
     elif "news_list" in st.session_state:
         st.info("未获取到相关新闻")
+
+# ---- AI 对话 Tab ----
+with tab_chat:
+    if not is_configured():
+        st.info("配置 LLM API Key 后可使用 AI 对话功能。参考 .env.example 设置。")
+    else:
+        from stock.llm import chat_messages
+
+        # 构建个股上下文 system prompt
+        _chat_stock_name = code
+        try:
+            _info = storage.search_stock(code)
+            if not _info.empty:
+                _chat_stock_name = _info.iloc[0]["name"]
+        except Exception:
+            pass
+
+        _latest = df.iloc[-1]
+        _recent = df.tail(30)
+        _ctx_lines = [
+            f"你是一位专业的A股证券分析师助手。当前用户正在查看 {_chat_stock_name}（{code}）。",
+            f"最新价: {_latest['close']:.2f}",
+            f"30日最高: {_recent['high'].max():.2f}，30日最低: {_recent['low'].min():.2f}",
+            f"30日涨跌幅: {((_latest['close'] / _recent.iloc[0]['close']) - 1) * 100:.2f}%",
+            f"最新成交量: {_latest['volume']:.0f} 手",
+        ]
+        if "pct_change" in _latest.index:
+            _ctx_lines.append(f"最新涨跌幅: {_latest['pct_change']:.2f}%")
+        for _col in ["ma5", "ma10", "ma20", "ma60", "macd_dif", "macd_dea", "kdj_k", "kdj_d", "kdj_j"]:
+            if _col in _latest.index and not pd.isna(_latest[_col]):
+                _ctx_lines.append(f"{_col}: {_latest[_col]:.2f}")
+        _ctx_lines.append("请用中文回答，保持专业客观。这是辅助分析，不构成投资建议。")
+        _system_prompt = "\n".join(_ctx_lines)
+
+        # 切换股票时清空对话
+        if st.session_state.get("chat_stock_code") != code:
+            st.session_state["chat_stock_code"] = code
+            st.session_state["chat_history"] = []
+
+        if "chat_history" not in st.session_state:
+            st.session_state["chat_history"] = []
+
+        # 清空按钮
+        if st.button("清空对话", key="clear_chat"):
+            st.session_state["chat_history"] = []
+            st.rerun()
+
+        # 显示历史消息
+        for msg in st.session_state["chat_history"]:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+        # 用户输入
+        if user_prompt := st.chat_input(f"向 AI 提问关于 {_chat_stock_name} 的问题...", key="chat_input"):
+            st.session_state["chat_history"].append({"role": "user", "content": user_prompt})
+            with st.chat_message("user"):
+                st.markdown(user_prompt)
+
+            with st.chat_message("assistant"):
+                with st.spinner("思考中..."):
+                    reply = chat_messages(
+                        st.session_state["chat_history"],
+                        system=_system_prompt,
+                    )
+                st.markdown(reply)
+            st.session_state["chat_history"].append({"role": "assistant", "content": reply})

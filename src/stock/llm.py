@@ -54,6 +54,24 @@ def chat(prompt: str, system: str = "") -> str:
         return _call_openai_compatible(prompt, system, provider)
 
 
+def chat_messages(messages: list[dict], system: str = "") -> str:
+    """多轮对话接口
+
+    Args:
+        messages: 对话历史 [{"role": "user"/"assistant", "content": "..."}]
+        system: 系统提示词（可选）
+
+    Returns:
+        模型回复文本
+    """
+    provider = settings.llm_provider.lower()
+
+    if provider == "claude":
+        return _call_claude_messages(messages, system)
+    else:
+        return _call_openai_compatible_messages(messages, system, provider)
+
+
 def _call_claude(prompt: str, system: str) -> str:
     """调用 Claude API"""
     if not settings.anthropic_api_key:
@@ -109,6 +127,67 @@ def _call_openai_compatible(prompt: str, system: str, provider: str) -> str:
         response = client.chat.completions.create(
             model=model,
             messages=messages,
+            max_tokens=2000,
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        logger.error(f"{provider} API 调用失败: {e}")
+        return f"调用失败: {e}"
+
+
+def _call_claude_messages(messages: list[dict], system: str) -> str:
+    if not settings.anthropic_api_key:
+        return "未配置 ANTHROPIC_API_KEY"
+
+    try:
+        import anthropic
+    except ImportError:
+        return "请安装 anthropic 包: pip install anthropic"
+
+    try:
+        client = anthropic.Anthropic(
+            api_key=settings.anthropic_api_key,
+            base_url=settings.anthropic_base_url or None,
+        )
+        kwargs = {
+            "model": settings.anthropic_model,
+            "max_tokens": 2000,
+            "messages": messages,
+        }
+        if system:
+            kwargs["system"] = system
+
+        message = client.messages.create(**kwargs)
+        return message.content[0].text
+    except Exception as e:
+        logger.error(f"Claude API 调用失败: {e}")
+        return f"调用失败: {e}"
+
+
+def _call_openai_compatible_messages(messages: list[dict], system: str, provider: str) -> str:
+    if not settings.openai_api_key:
+        return f"未配置 OPENAI_API_KEY（当前 provider: {provider}）"
+
+    try:
+        from openai import OpenAI
+    except ImportError:
+        return "请安装 openai 包: pip install openai"
+
+    defaults = _PROVIDER_DEFAULTS.get(provider, _PROVIDER_DEFAULTS["openai"])
+    base_url = settings.openai_base_url or defaults["base_url"]
+    model = settings.openai_model or defaults["model"]
+
+    try:
+        client = OpenAI(api_key=settings.openai_api_key, base_url=base_url)
+
+        api_messages = []
+        if system:
+            api_messages.append({"role": "system", "content": system})
+        api_messages.extend(messages)
+
+        response = client.chat.completions.create(
+            model=model,
+            messages=api_messages,
             max_tokens=2000,
         )
         return response.choices[0].message.content
