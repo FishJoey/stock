@@ -113,6 +113,11 @@ fig = make_subplots(
 )
 
 # K线
+_pct = df["pct_change"] if "pct_change" in df.columns else [0.0] * len(df)
+_chg = df["change"] if "change" in df.columns else [0.0] * len(df)
+import numpy as np
+_customdata = np.column_stack([_pct, _chg])
+
 fig.add_trace(
     go.Candlestick(
         x=df["date"],
@@ -125,6 +130,12 @@ fig.add_trace(
         decreasing_line_color="#26a69a",
         increasing_fillcolor="#ef5350",
         decreasing_fillcolor="#26a69a",
+        customdata=_customdata,
+        hovertext=[
+            f"涨跌幅: {p:.2f}%<br>涨跌额: {c:.2f}"
+            for p, c in zip(_pct, _chg)
+        ],
+        hoverinfo="text+x+y",
     ),
     row=1, col=1,
 )
