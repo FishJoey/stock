@@ -336,3 +336,33 @@ class AKShareProvider(DataProvider):
             "small_net": pd.to_numeric(df.iloc[:, 9], errors="coerce").fillna(0),
         })
         return result
+
+    @retry()
+    def get_financial_indicator(self, code: str) -> pd.DataFrame:
+        """获取个股核心财务指标（季度）
+        Returns: DataFrame [date, roe, net_margin, gross_margin, revenue_yoy,
+                 profit_yoy, eps, bps, debt_ratio, current_ratio, asset_turnover]
+        """
+        df = ak.stock_financial_analysis_indicator(symbol=code, start_year="2022")
+        if df.empty:
+            return pd.DataFrame()
+        col_map = {
+            "日期": "date",
+            "净资产收益率(%)": "roe",
+            "销售净利率(%)": "net_margin",
+            "销售毛利率(%)": "gross_margin",
+            "主营业务收入增长率(%)": "revenue_yoy",
+            "净利润增长率(%)": "profit_yoy",
+            "摊薄每股收益(元)": "eps",
+            "每股净资产_调整前(元)": "bps",
+            "资产负债率(%)": "debt_ratio",
+            "流动比率": "current_ratio",
+            "总资产周转率(次)": "asset_turnover",
+        }
+        available = {k: v for k, v in col_map.items() if k in df.columns}
+        result = df[list(available.keys())].rename(columns=available).copy()
+        for col in result.columns:
+            if col != "date":
+                result[col] = pd.to_numeric(result[col], errors="coerce")
+        result = result.sort_values("date", ascending=False).reset_index(drop=True)
+        return result

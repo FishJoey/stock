@@ -259,3 +259,21 @@ class BaostockProvider(DataProvider):
         except Exception as e:
             logger.warning(f"北向资金获取失败: {e}")
             return pd.DataFrame()
+
+    def get_stock_fund_flow(self, code: str) -> pd.DataFrame:
+        """获取个股资金流向（委托 AKShare）"""
+        try:
+            from stock.data.akshare_provider import AKShareProvider
+            return AKShareProvider().get_stock_fund_flow(code)
+        except Exception as e:
+            logger.warning(f"个股资金流向获取失败: {e}")
+            return pd.DataFrame()
+
+    def get_financial_indicator(self, code: str) -> pd.DataFrame:
+        """获取个股财务指标（委托 AKShare）"""
+        try:
+            from stock.data.akshare_provider import AKShareProvider
+            return AKShareProvider().get_financial_indicator(code)
+        except Exception as e:
+            logger.warning(f"财务指标获取失败: {e}")
+            return pd.DataFrame()

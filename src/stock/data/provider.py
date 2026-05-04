@@ -90,3 +90,12 @@ class DataProvider(ABC):
     def get_stock_fund_flow(self, code: str) -> pd.DataFrame:
         """获取个股资金流向"""
         return pd.DataFrame()
+
+    # ---- 财务指标（可选实现）----
+
+    def get_financial_indicator(self, code: str) -> pd.DataFrame:
+        """获取个股核心财务指标（按季度）
+        Returns: DataFrame [date, roe, net_margin, gross_margin, revenue_yoy,
+                 profit_yoy, eps, bps, debt_ratio, current_ratio, asset_turnover]
+        """
+        return pd.DataFrame()

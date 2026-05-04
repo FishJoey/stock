@@ -255,7 +255,9 @@ if "pct_change" in df.columns:
 from stock.llm import is_configured, get_provider_name
 from stock.data.news import fetch_stock_news
 
-tab_ai, tab_news, tab_chat = st.tabs(["AI 智能研报", "个股资讯", "AI 对话"])
+tab_ai, tab_fund, tab_fundamental, tab_backtest, tab_news, tab_chat = st.tabs(
+    ["AI 智能研报", "资金流向", "基本面", "快速回测", "个股资讯", "AI 对话"]
+)
 
 # ---- AI 智能研报 Tab ----
 with tab_ai:
@@ -442,6 +444,217 @@ with tab_ai:
                         code=code,
                     )
                     st.rerun()
+
+# ---- 资金流向 Tab ----
+with tab_fund:
+    if st.button("获取资金流向", key="fetch_fund_flow"):
+        with st.spinner("正在获取资金流向数据..."):
+            fund_df = provider.get_stock_fund_flow(code)
+        st.session_state["fund_flow_df"] = fund_df
+
+    if "fund_flow_df" in st.session_state and not st.session_state["fund_flow_df"].empty:
+        fund_df = st.session_state["fund_flow_df"]
+
+        # 主力资金净流入柱状图
+        st.subheader("主力资金净流入")
+        _fund_colors = ["#ef5350" if v >= 0 else "#26a69a" for v in fund_df["main_net"]]
+        fig_fund = go.Figure()
+        fig_fund.add_trace(go.Bar(
+            x=fund_df["date"], y=fund_df["main_net"],
+            name="主力净流入", marker_color=_fund_colors,
+        ))
+        fig_fund.update_layout(height=300, margin=dict(l=50, r=20, t=30, b=30), yaxis_title="万元")
+        fig_fund.update_xaxes(type="category", nticks=20)
+        st.plotly_chart(fig_fund, use_container_width=True)
+
+        # 各类资金趋势折线图
+        st.subheader("分类资金净流入趋势")
+        fig_detail = go.Figure()
+        fig_detail.add_trace(go.Scatter(
+            x=fund_df["date"], y=fund_df["super_large_net"], name="超大单",
+            line=dict(color="#E91E63", width=1.5),
+        ))
+        fig_detail.add_trace(go.Scatter(
+            x=fund_df["date"], y=fund_df["large_net"], name="大单",
+            line=dict(color="#FF9800", width=1.5),
+        ))
+        fig_detail.add_trace(go.Scatter(
+            x=fund_df["date"], y=fund_df["medium_net"], name="中单",
+            line=dict(color="#2196F3", width=1.5),
+        ))
+        fig_detail.add_trace(go.Scatter(
+            x=fund_df["date"], y=fund_df["small_net"], name="小单",
+            line=dict(color="#9C27B0", width=1.5),
+        ))
+        fig_detail.update_layout(height=280, margin=dict(l=50, r=20, t=30, b=30), yaxis_title="万元")
+        fig_detail.update_xaxes(type="category", nticks=20)
+        st.plotly_chart(fig_detail, use_container_width=True)
+
+        # 累计统计
+        _cols = st.columns(4)
+        _cols[0].metric("近5日主力净流入", f"{fund_df['main_net'].head(5).sum():.0f} 万")
+        _cols[1].metric("近10日主力净流入", f"{fund_df['main_net'].head(10).sum():.0f} 万")
+        _cols[2].metric("近20日主力净流入", f"{fund_df['main_net'].head(20).sum():.0f} 万")
+        _cols[3].metric("近5日散户净流入", f"{(fund_df['medium_net'].head(5) + fund_df['small_net'].head(5)).sum():.0f} 万")
+    elif "fund_flow_df" in st.session_state:
+        st.info("未获取到资金流向数据")
+
+# ---- 基本面 Tab ----
+with tab_fundamental:
+    if st.button("获取财务指标", key="fetch_financial"):
+        with st.spinner("正在获取财务数据..."):
+            fin_df = provider.get_financial_indicator(code)
+        st.session_state["financial_df"] = fin_df
+
+    if "financial_df" in st.session_state and not st.session_state["financial_df"].empty:
+        fin_df = st.session_state["financial_df"]
+        latest_fin = fin_df.iloc[0]
+
+        # 核心指标卡片
+        st.subheader("最新财务指标")
+        _fin_cols = st.columns(6)
+        _fin_cols[0].metric("ROE", f"{latest_fin.get('roe', 0):.2f}%")
+        _fin_cols[1].metric("净利率", f"{latest_fin.get('net_margin', 0):.2f}%")
+        _fin_cols[2].metric("毛利率", f"{latest_fin.get('gross_margin', 0):.2f}%")
+        _fin_cols[3].metric("营收增速", f"{latest_fin.get('revenue_yoy', 0):.2f}%")
+        _fin_cols[4].metric("净利润增速", f"{latest_fin.get('profit_yoy', 0):.2f}%")
+        _fin_cols[5].metric("EPS", f"{latest_fin.get('eps', 0):.4f}")
+
+        _fin_cols2 = st.columns(4)
+        _fin_cols2[0].metric("每股净资产", f"{latest_fin.get('bps', 0):.2f}")
+        _fin_cols2[1].metric("资产负债率", f"{latest_fin.get('debt_ratio', 0):.2f}%")
+        _fin_cols2[2].metric("流动比率", f"{latest_fin.get('current_ratio', 0):.2f}")
+        _fin_cols2[3].metric("资产周转率", f"{latest_fin.get('asset_turnover', 0):.4f}")
+
+        # 盈利能力趋势图（近8期）
+        trend_df = fin_df.head(8).iloc[::-1]  # 时间正序
+        if "roe" in trend_df.columns and "net_margin" in trend_df.columns:
+            st.subheader("盈利能力趋势")
+            fig_profit = go.Figure()
+            fig_profit.add_trace(go.Scatter(
+                x=trend_df["date"], y=trend_df["roe"], name="ROE(%)",
+                line=dict(color="#E91E63", width=2),
+            ))
+            fig_profit.add_trace(go.Scatter(
+                x=trend_df["date"], y=trend_df["net_margin"], name="净利率(%)",
+                line=dict(color="#2196F3", width=2),
+            ))
+            if "gross_margin" in trend_df.columns:
+                fig_profit.add_trace(go.Scatter(
+                    x=trend_df["date"], y=trend_df["gross_margin"], name="毛利率(%)",
+                    line=dict(color="#FF9800", width=2),
+                ))
+            fig_profit.update_layout(height=300, margin=dict(l=50, r=20, t=30, b=30))
+            st.plotly_chart(fig_profit, use_container_width=True)
+
+        # 增长趋势图
+        if "revenue_yoy" in trend_df.columns and "profit_yoy" in trend_df.columns:
+            st.subheader("增长趋势")
+            fig_growth = go.Figure()
+            fig_growth.add_trace(go.Bar(
+                x=trend_df["date"], y=trend_df["revenue_yoy"], name="营收增速(%)",
+                marker_color="#2196F3",
+            ))
+            fig_growth.add_trace(go.Bar(
+                x=trend_df["date"], y=trend_df["profit_yoy"], name="净利润增速(%)",
+                marker_color="#FF9800",
+            ))
+            fig_growth.update_layout(
+                height=280, margin=dict(l=50, r=20, t=30, b=30), barmode="group",
+            )
+            st.plotly_chart(fig_growth, use_container_width=True)
+
+        # 完整数据表
+        with st.expander("完整财务数据", expanded=False):
+            display_cols = {
+                "date": "日期", "roe": "ROE(%)", "net_margin": "净利率(%)",
+                "gross_margin": "毛利率(%)", "revenue_yoy": "营收增速(%)",
+                "profit_yoy": "净利润增速(%)", "eps": "EPS",
+                "bps": "每股净资产", "debt_ratio": "资产负债率(%)",
+                "current_ratio": "流动比率", "asset_turnover": "资产周转率",
+            }
+            _show_cols = [c for c in display_cols if c in fin_df.columns]
+            st.dataframe(
+                fin_df[_show_cols].rename(columns=display_cols).head(12),
+                use_container_width=True, hide_index=True,
+            )
+    elif "financial_df" in st.session_state:
+        st.info("未获取到财务数据")
+
+# ---- 快速回测 Tab ----
+with tab_backtest:
+    from stock.strategy.backtest import backtest as run_backtest
+    from stock.strategy.templates import (
+        MACrossStrategy, MACDStrategy, BollBreakoutStrategy, KDJRSIStrategy,
+    )
+
+    st.subheader("策略回测")
+    _bt_col1, _bt_col2 = st.columns([2, 3])
+    with _bt_col1:
+        _bt_strategy = st.selectbox("选择策略", ["均线交叉", "MACD交叉", "布林带突破", "KDJ+RSI"], key="bt_strategy")
+    with _bt_col2:
+        if _bt_strategy == "均线交叉":
+            _c1, _c2 = st.columns(2)
+            _bt_fast = _c1.number_input("短期", 3, 60, 5, key="bt_fast")
+            _bt_slow = _c2.number_input("长期", 10, 250, 20, key="bt_slow")
+        elif _bt_strategy == "MACD交叉":
+            _c1, _c2, _c3 = st.columns(3)
+            _bt_macd_fast = _c1.number_input("快线", 5, 30, 12, key="bt_mf")
+            _bt_macd_slow = _c2.number_input("慢线", 15, 50, 26, key="bt_ms")
+            _bt_macd_sig = _c3.number_input("信号", 5, 20, 9, key="bt_sig")
+        elif _bt_strategy == "布林带突破":
+            _c1, _c2 = st.columns(2)
+            _bt_boll_p = _c1.number_input("周期", 10, 50, 20, key="bt_bp")
+            _bt_boll_std = _c2.number_input("标准差", 1.0, 3.0, 2.0, 0.1, key="bt_bs")
+        else:
+            _c1, _c2 = st.columns(2)
+            _bt_kdj_n = _c1.number_input("KDJ周期", 5, 20, 9, key="bt_kn")
+            _bt_rsi_p = _c2.number_input("RSI周期", 5, 30, 12, key="bt_rp")
+
+    if st.button("运行回测", type="primary", key="run_backtest"):
+        if _bt_strategy == "均线交叉":
+            _strategy = MACrossStrategy(fast=_bt_fast, slow=_bt_slow)
+        elif _bt_strategy == "MACD交叉":
+            _strategy = MACDStrategy(fast=_bt_macd_fast, slow=_bt_macd_slow, signal=_bt_macd_sig)
+        elif _bt_strategy == "布林带突破":
+            _strategy = BollBreakoutStrategy(period=_bt_boll_p, std_dev=_bt_boll_std)
+        else:
+            _strategy = KDJRSIStrategy(kdj_n=_bt_kdj_n, rsi_period=_bt_rsi_p)
+
+        with st.spinner("回测中..."):
+            _bt_result = run_backtest(df, _strategy, initial_capital=1_000_000, code=code)
+        st.session_state["bt_result"] = _bt_result
+
+    if "bt_result" in st.session_state:
+        _bt_result = st.session_state["bt_result"]
+        _metrics = _bt_result["metrics"]
+
+        # 绩效指标
+        _m_cols = st.columns(5)
+        _m_cols[0].metric("总收益", f"{_metrics['total_return']:.2f}%")
+        _m_cols[1].metric("年化收益", f"{_metrics['annual_return']:.2f}%")
+        _m_cols[2].metric("最大回撤", f"{_metrics['max_drawdown']:.2f}%")
+        _m_cols[3].metric("夏普比率", f"{_metrics['sharpe_ratio']:.3f}")
+        _m_cols[4].metric("胜率", f"{_metrics['win_rate']:.1f}%")
+
+        # 净值曲线
+        fig_eq = go.Figure()
+        fig_eq.add_trace(go.Scatter(
+            x=df["date"], y=_bt_result["equity_curve"],
+            name="策略净值", line=dict(color="#1f77b4"),
+        ))
+        fig_eq.add_hline(y=1.0, line_dash="dash", line_color="gray", annotation_text="初始净值")
+        fig_eq.update_layout(height=350, margin=dict(l=50, r=20, t=30, b=30), yaxis_title="净值")
+        fig_eq.update_xaxes(type="category", nticks=20)
+        st.plotly_chart(fig_eq, use_container_width=True)
+
+        # 交易记录
+        _trades = _bt_result["trades"]
+        if not _trades.empty:
+            with st.expander(f"交易记录（{len(_trades)} 笔）", expanded=False):
+                st.dataframe(_trades, use_container_width=True, hide_index=True)
+        else:
+            st.info("本次回测无交易信号触发")
 
 # ---- 个股资讯 Tab ----
 with tab_news:
