@@ -1,6 +1,7 @@
 """定时数据拉取调度器
 
 使用 APScheduler 自动执行：
+- 涨停股池拉取（周一至周五 15:30）
 - 日K线增量拉取（周一至周五 16:00）
 - 股票列表更新（每周一 09:00）
 - 行业映射更新（每月1号 09:00）
@@ -50,6 +51,17 @@ def job_refresh_industry():
         logger.error(f"行业映射更新失败: {e}")
 
 
+def job_fetch_limit_up():
+    """涨停板全量数据拉取"""
+    logger.info("=== 开始涨停板全量拉取 ===")
+    try:
+        from fetch_limit_up import fetch_all_limit_pools
+        fetch_all_limit_pools()
+        logger.info("=== 涨停板全量拉取完成 ===")
+    except Exception as e:
+        logger.error(f"涨停板拉取失败: {e}")
+
+
 def main():
     scheduler = BlockingScheduler()
 
@@ -83,8 +95,19 @@ def main():
         name="行业映射更新",
     )
 
+    scheduler.add_job(
+        job_fetch_limit_up,
+        "cron",
+        day_of_week="mon-fri",
+        hour=15,
+        minute=30,
+        id="limit_up_pool",
+        name="涨停股池拉取",
+    )
+
     logger.info("调度器已启动，按 Ctrl+C 退出")
     logger.info("调度计划:")
+    logger.info("  - 涨停板全量拉取:  周一至周五 15:30")
     logger.info("  - 日K线增量拉取: 周一至周五 16:00")
     logger.info("  - 股票列表更新:  每周一 09:00")
     logger.info("  - 行业映射更新:  每月1号 09:00")

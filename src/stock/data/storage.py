@@ -237,3 +237,87 @@ class Storage:
 
     def delete_skill(self, skill_id: str):
         self.conn.execute("DELETE FROM agent_skills WHERE id = ?", [skill_id])
+
+    # ---- 涨停股池 ----
+
+    def upsert_limit_up_pool(self, df: pd.DataFrame):
+        """写入涨停股池（按 date+code 去重）"""
+        if df.empty:
+            return
+        self.conn.execute("INSERT OR REPLACE INTO limit_up_pool SELECT * FROM df")
+
+    def get_limit_up_pool(self, date_str: str) -> pd.DataFrame:
+        """查询某日涨停股池"""
+        return self.conn.execute(
+            "SELECT * FROM limit_up_pool WHERE date = ? ORDER BY streak DESC, seal_amount DESC",
+            [date_str],
+        ).fetchdf()
+
+    def get_limit_up_stats(self, start_date: str, end_date: str) -> pd.DataFrame:
+        """查询日期范围内每日涨停统计（用于趋势图）"""
+        return self.conn.execute(
+            "SELECT date, COUNT(*) as count, AVG(streak) as avg_streak "
+            "FROM limit_up_pool WHERE date >= ? AND date <= ? "
+            "GROUP BY date ORDER BY date",
+            [start_date, end_date],
+        ).fetchdf()
+
+    # ---- 炸板股池 ----
+
+    def upsert_limit_up_failed_pool(self, df: pd.DataFrame):
+        """写入炸板股池（按 date+code 去重）"""
+        if df.empty:
+            return
+        self.conn.execute("INSERT OR REPLACE INTO limit_up_failed_pool SELECT * FROM df")
+
+    def get_limit_up_failed_pool(self, date_str: str) -> pd.DataFrame:
+        """查询某日炸板股池"""
+        return self.conn.execute(
+            "SELECT * FROM limit_up_failed_pool WHERE date = ? ORDER BY failed_count DESC",
+            [date_str],
+        ).fetchdf()
+
+    # ---- 跌停股池 ----
+
+    def upsert_limit_down_pool(self, df: pd.DataFrame):
+        """写入跌停股池（按 date+code 去重）"""
+        if df.empty:
+            return
+        self.conn.execute("INSERT OR REPLACE INTO limit_down_pool SELECT * FROM df")
+
+    def get_limit_down_pool(self, date_str: str) -> pd.DataFrame:
+        """查询某日跌停股池"""
+        return self.conn.execute(
+            "SELECT * FROM limit_down_pool WHERE date = ? ORDER BY consecutive DESC",
+            [date_str],
+        ).fetchdf()
+
+    # ---- 昨日涨停 ----
+
+    def upsert_previous_limit_up_pool(self, df: pd.DataFrame):
+        """写入昨日涨停股池（按 date+code 去重）"""
+        if df.empty:
+            return
+        self.conn.execute("INSERT OR REPLACE INTO previous_limit_up_pool SELECT * FROM df")
+
+    def get_previous_limit_up_pool(self, date_str: str) -> pd.DataFrame:
+        """查询某日昨日涨停股池"""
+        return self.conn.execute(
+            "SELECT * FROM previous_limit_up_pool WHERE date = ? ORDER BY pct_change DESC",
+            [date_str],
+        ).fetchdf()
+
+    # ---- 情绪汇总 ----
+
+    def upsert_market_sentiment(self, df: pd.DataFrame):
+        """写入每日市场情绪汇总"""
+        if df.empty:
+            return
+        self.conn.execute("INSERT OR REPLACE INTO market_sentiment_daily SELECT * FROM df")
+
+    def get_market_sentiment(self, start_date: str, end_date: str) -> pd.DataFrame:
+        """查询日期范围内的市场情绪汇总"""
+        return self.conn.execute(
+            "SELECT * FROM market_sentiment_daily WHERE date >= ? AND date <= ? ORDER BY date",
+            [start_date, end_date],
+        ).fetchdf()

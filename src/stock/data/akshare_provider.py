@@ -337,6 +337,96 @@ class AKShareProvider(DataProvider):
         })
         return result
 
+    # ---- 涨停板 ----
+
+    @retry()
+    def get_limit_up_pool(self, date_str: str) -> pd.DataFrame:
+        """涨停股池"""
+        df = ak.stock_zt_pool_em(date=date_str)
+        if df.empty:
+            return pd.DataFrame()
+        col_map = {
+            "代码": "code", "名称": "name", "涨跌幅": "pct_change",
+            "最新价": "price", "成交额": "amount", "流通市值": "float_mv",
+            "换手率": "turnover", "封板资金": "seal_amount",
+            "首次封板时间": "first_seal_time", "最后封板时间": "last_seal_time",
+            "炸板次数": "failed_count", "连板数": "streak", "所属行业": "industry",
+        }
+        available = {k: v for k, v in col_map.items() if k in df.columns}
+        result = df[list(available.keys())].rename(columns=available).copy()
+        for col in ["pct_change", "price", "amount", "float_mv", "turnover", "seal_amount", "failed_count", "streak"]:
+            if col in result.columns:
+                result[col] = pd.to_numeric(result[col], errors="coerce").fillna(0)
+        if "code" in result.columns:
+            result["code"] = result["code"].astype(str).str.zfill(6)
+        return result
+
+    @retry()
+    def get_limit_up_failed_pool(self, date_str: str) -> pd.DataFrame:
+        """炸板股池"""
+        df = ak.stock_zt_pool_zbgc_em(date=date_str)
+        if df.empty:
+            return pd.DataFrame()
+        col_map = {
+            "代码": "code", "名称": "name", "涨跌幅": "pct_change",
+            "最新价": "price", "涨停价": "limit_price", "成交额": "amount",
+            "流通市值": "float_mv", "换手率": "turnover",
+            "首次封板时间": "first_seal_time", "炸板次数": "failed_count",
+            "振幅": "amplitude", "所属行业": "industry",
+        }
+        available = {k: v for k, v in col_map.items() if k in df.columns}
+        result = df[list(available.keys())].rename(columns=available).copy()
+        for col in ["pct_change", "price", "limit_price", "amount", "float_mv", "turnover", "failed_count", "amplitude"]:
+            if col in result.columns:
+                result[col] = pd.to_numeric(result[col], errors="coerce").fillna(0)
+        if "code" in result.columns:
+            result["code"] = result["code"].astype(str).str.zfill(6)
+        return result
+
+    @retry()
+    def get_limit_down_pool(self, date_str: str) -> pd.DataFrame:
+        """跌停股池"""
+        df = ak.stock_zt_pool_dtgc_em(date=date_str)
+        if df.empty:
+            return pd.DataFrame()
+        col_map = {
+            "代码": "code", "名称": "name", "涨跌幅": "pct_change",
+            "最新价": "price", "成交额": "amount", "流通市值": "float_mv",
+            "换手率": "turnover", "封单资金": "seal_amount",
+            "连续跌停": "consecutive", "开板次数": "open_count",
+            "所属行业": "industry",
+        }
+        available = {k: v for k, v in col_map.items() if k in df.columns}
+        result = df[list(available.keys())].rename(columns=available).copy()
+        for col in ["pct_change", "price", "amount", "float_mv", "turnover", "seal_amount", "consecutive", "open_count"]:
+            if col in result.columns:
+                result[col] = pd.to_numeric(result[col], errors="coerce").fillna(0)
+        if "code" in result.columns:
+            result["code"] = result["code"].astype(str).str.zfill(6)
+        return result
+
+    @retry()
+    def get_previous_limit_up_pool(self, date_str: str) -> pd.DataFrame:
+        """昨日涨停股今日表现"""
+        df = ak.stock_zt_pool_previous_em(date=date_str)
+        if df.empty:
+            return pd.DataFrame()
+        col_map = {
+            "代码": "code", "名称": "name", "涨跌幅": "pct_change",
+            "最新价": "price", "涨停价": "limit_price", "成交额": "amount",
+            "流通市值": "float_mv", "换手率": "turnover", "振幅": "amplitude",
+            "昨日封板时间": "prev_seal_time", "昨日连板数": "prev_streak",
+            "所属行业": "industry",
+        }
+        available = {k: v for k, v in col_map.items() if k in df.columns}
+        result = df[list(available.keys())].rename(columns=available).copy()
+        for col in ["pct_change", "price", "limit_price", "amount", "float_mv", "turnover", "amplitude", "prev_streak"]:
+            if col in result.columns:
+                result[col] = pd.to_numeric(result[col], errors="coerce").fillna(0)
+        if "code" in result.columns:
+            result["code"] = result["code"].astype(str).str.zfill(6)
+        return result
+
     @retry()
     def get_financial_indicator(self, code: str) -> pd.DataFrame:
         """获取个股核心财务指标（季度）

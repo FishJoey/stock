@@ -91,6 +91,24 @@ class DataProvider(ABC):
         """获取个股资金流向"""
         return pd.DataFrame()
 
+    # ---- 涨停板（可选实现，默认返回空 DataFrame）----
+
+    def get_limit_up_pool(self, date_str: str) -> pd.DataFrame:
+        """涨停股池"""
+        return pd.DataFrame()
+
+    def get_limit_up_failed_pool(self, date_str: str) -> pd.DataFrame:
+        """炸板股池"""
+        return pd.DataFrame()
+
+    def get_limit_down_pool(self, date_str: str) -> pd.DataFrame:
+        """跌停股池"""
+        return pd.DataFrame()
+
+    def get_previous_limit_up_pool(self, date_str: str) -> pd.DataFrame:
+        """昨日涨停股今日表现"""
+        return pd.DataFrame()
+
     # ---- 财务指标（可选实现）----
 
     def get_financial_indicator(self, code: str) -> pd.DataFrame:

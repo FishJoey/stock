@@ -269,6 +269,44 @@ class BaostockProvider(DataProvider):
             logger.warning(f"个股资金流向获取失败: {e}")
             return pd.DataFrame()
 
+    # ---- 涨停板（委托 AKShare）----
+
+    def get_limit_up_pool(self, date_str: str) -> pd.DataFrame:
+        """涨停股池（委托 AKShare）"""
+        try:
+            from stock.data.akshare_provider import AKShareProvider
+            return AKShareProvider().get_limit_up_pool(date_str)
+        except Exception as e:
+            logger.warning(f"涨停股池获取失败: {e}")
+            return pd.DataFrame()
+
+    def get_limit_up_failed_pool(self, date_str: str) -> pd.DataFrame:
+        """炸板股池（委托 AKShare）"""
+        try:
+            from stock.data.akshare_provider import AKShareProvider
+            return AKShareProvider().get_limit_up_failed_pool(date_str)
+        except Exception as e:
+            logger.warning(f"炸板股池获取失败: {e}")
+            return pd.DataFrame()
+
+    def get_limit_down_pool(self, date_str: str) -> pd.DataFrame:
+        """跌停股池（委托 AKShare）"""
+        try:
+            from stock.data.akshare_provider import AKShareProvider
+            return AKShareProvider().get_limit_down_pool(date_str)
+        except Exception as e:
+            logger.warning(f"跌停股池获取失败: {e}")
+            return pd.DataFrame()
+
+    def get_previous_limit_up_pool(self, date_str: str) -> pd.DataFrame:
+        """昨日涨停股今日表现（委托 AKShare）"""
+        try:
+            from stock.data.akshare_provider import AKShareProvider
+            return AKShareProvider().get_previous_limit_up_pool(date_str)
+        except Exception as e:
+            logger.warning(f"昨日涨停池获取失败: {e}")
+            return pd.DataFrame()
+
     def get_financial_indicator(self, code: str) -> pd.DataFrame:
         """获取个股财务指标（委托 AKShare）"""
         try:

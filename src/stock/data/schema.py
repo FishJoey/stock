@@ -113,8 +113,104 @@ CREATE TABLE IF NOT EXISTS agent_skills (
 )
 """
 
+# 涨停股池
+CREATE_LIMIT_UP_POOL = """
+CREATE TABLE IF NOT EXISTS limit_up_pool (
+    date DATE NOT NULL,
+    code VARCHAR NOT NULL,
+    name VARCHAR,
+    pct_change DOUBLE,
+    price DOUBLE,
+    amount DOUBLE,
+    float_mv DOUBLE,
+    turnover DOUBLE,
+    seal_amount DOUBLE,
+    first_seal_time VARCHAR,
+    last_seal_time VARCHAR,
+    failed_count INTEGER,
+    streak INTEGER,
+    industry VARCHAR,
+    PRIMARY KEY (date, code)
+)
+"""
+
+# 炸板股池
+CREATE_LIMIT_UP_FAILED_POOL = """
+CREATE TABLE IF NOT EXISTS limit_up_failed_pool (
+    date DATE NOT NULL,
+    code VARCHAR NOT NULL,
+    name VARCHAR,
+    pct_change DOUBLE,
+    price DOUBLE,
+    limit_price DOUBLE,
+    amount DOUBLE,
+    float_mv DOUBLE,
+    turnover DOUBLE,
+    first_seal_time VARCHAR,
+    failed_count INTEGER,
+    amplitude DOUBLE,
+    industry VARCHAR,
+    PRIMARY KEY (date, code)
+)
+"""
+
+# 跌停股池
+CREATE_LIMIT_DOWN_POOL = """
+CREATE TABLE IF NOT EXISTS limit_down_pool (
+    date DATE NOT NULL,
+    code VARCHAR NOT NULL,
+    name VARCHAR,
+    pct_change DOUBLE,
+    price DOUBLE,
+    amount DOUBLE,
+    float_mv DOUBLE,
+    turnover DOUBLE,
+    seal_amount DOUBLE,
+    consecutive INTEGER,
+    open_count INTEGER,
+    industry VARCHAR,
+    PRIMARY KEY (date, code)
+)
+"""
+
+# 昨日涨停股池（今日表现）
+CREATE_PREVIOUS_LIMIT_UP_POOL = """
+CREATE TABLE IF NOT EXISTS previous_limit_up_pool (
+    date DATE NOT NULL,
+    code VARCHAR NOT NULL,
+    name VARCHAR,
+    pct_change DOUBLE,
+    price DOUBLE,
+    limit_price DOUBLE,
+    amount DOUBLE,
+    float_mv DOUBLE,
+    turnover DOUBLE,
+    amplitude DOUBLE,
+    prev_seal_time VARCHAR,
+    prev_streak INTEGER,
+    industry VARCHAR,
+    PRIMARY KEY (date, code)
+)
+"""
+
+# 每日市场情绪汇总（一天一行）
+CREATE_MARKET_SENTIMENT_DAILY = """
+CREATE TABLE IF NOT EXISTS market_sentiment_daily (
+    date DATE PRIMARY KEY,
+    limit_up_count INTEGER,
+    limit_up_failed_count INTEGER,
+    limit_down_count INTEGER,
+    seal_rate DOUBLE,
+    promote_rate DOUBLE,
+    avg_streak DOUBLE,
+    top_industry VARCHAR
+)
+"""
+
 ALL_TABLES = [
     CREATE_STOCK_LIST, CREATE_DAILY_KLINE, CREATE_INDEX_DAILY,
     CREATE_INDUSTRY_MAPPING, CREATE_INDUSTRY_DAILY, CREATE_FUND_FLOW_DAILY,
-    CREATE_AI_REPORTS, CREATE_AGENT_SKILLS,
+    CREATE_AI_REPORTS, CREATE_AGENT_SKILLS, CREATE_LIMIT_UP_POOL,
+    CREATE_LIMIT_UP_FAILED_POOL, CREATE_LIMIT_DOWN_POOL,
+    CREATE_PREVIOUS_LIMIT_UP_POOL, CREATE_MARKET_SENTIMENT_DAILY,
 ]
